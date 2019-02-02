@@ -1,0 +1,154 @@
+---
+title: "Applied Statistics and Data Analysis"
+author: Edoardo Marangone---Gabriele Venturato
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+abstract: |
+  This is the abstract.
+---
+The aim of this paper is to explore and give an insight into the *rminer* package of R. The purposes are to introduce linear regression, present regression methods and then use them on a dataset to show their applications.
+
+The rminer package can be installed using R package installation or by typing the command: 
+```r
+install.packages("rminer")
+```
+The command to load the package is:
+```{r}
+library(rminer)
+library(kknn)
+library(ggplot2)
+```
+This package allows to do *data preparation*, *modeling* and *evaluation*.
+
+### Data preparation
+#### 1. Loading Data
+The rminer package assumes that a dataset is available as a dataframe. As example in our case we load a csv of the dataset found on Kaglle, 
+```{r}
+lifeexp.df = read.csv("Life Expectancy Data.csv")
+```
+
+To see details about the dataset just loaded:
+```{r}
+str(lifeexp.df)
+summary(lifeexp.df)
+```
+
+In summary we see that for some variables there are missing values, so we need to take care of them in next section.
+
+#### 2. Data Selection and transformation
+This is a crucial step because it inclues operations, such as outlier detection and removal, attribute and instance selection, assuring data quality etc. In rminer package there are some useful functions, such as 
+
+* delevels
+* imputation
+* CasesSeries.
+
+*Delevels:* reduces or replace factors levels;
+
+*Imputation:* replaces missing data with values according to the other values of the dataframe 
+
+*CasesSeries:* Creates a dataframe from a time series using a sliding window. The sliding window contains a set of time lags used to pull out variable inputs from a series.
+
+In this first part we used only the *imputation* function to deal with missing values. We tried with three different methods:
+1. Deleting all the entries with missing values
+2. Using imputation to substitute missing values with the mode
+3. Using imputation to substitute missing values using the hotdeck method
+
+```{r}
+# 1st method: case deletion
+lifeexp.na.del = na.omit(lifeexp.df)
+summary(lifeexp.na.del)
+
+# 2nd method: imputation by mode
+lifeexp.imp.mode = lifeexp.df
+for (i in 1:ncol(lifeexp.df)) {
+  if ( any(is.na(lifeexp.df[,i])) ) {
+    lifeexp.imp.mode = imputation("value", lifeexp.imp.mode, i, Value=which.max(table(na.omit(lifeexp.df[,i]))))
+  }
+}
+summary(lifeexp.imp.mode)
+
+# 3rd mode: imputation by hotdeck
+lifeexp.imp.hotdeck = lifeexp.df
+for (i in 1:ncol(lifeexp.df)) {
+  if ( any(is.na(lifeexp.df[,i])) ) {
+    lifeexp.imp.hotdeck = imputation("hotdeck", lifeexp.imp.hotdeck, i)
+  }
+}
+summary(lifeexp.imp.mode)
+```
+
+We performed also a comparison among the different techniques. Here we report the result for the *Alcohol* variable:
+```{r}
+meth1=data.frame(length=lifeexp.na.del$Alcohol)
+meth2=data.frame(length=lifeexp.imp.mode$Alcohol)
+meth3=data.frame(length=lifeexp.imp.hotdeck$Alcohol)
+meth1$method="original"
+meth2$method="mode"
+meth3$method="hotdeck"
+all=rbind(meth1,meth2,meth3)
+ggplot(all,aes(length,fill=method))+geom_density(alpha = 0.2)
+```
+
+we can see that the hotdeck method is the average solution, compared with the mode that is too much extreme, so we decided to keep the dataset with missing values substituted with the hotdeck technique.
+
+```{r include=FALSE}
+lifeexp = lifeexp.imp.hotdeck
+lifeexp = lifeexp[,c(2:ncol(lifeexp))]
+inputs  = c(1:2,4:ncol(lifeexp))
+dvar    = 3
+```
+
+### Modeling
+The rminer package contains 15 regression methods. These methods can be used by *fit*, *predict* and *mining* functions. We focused our attention on *RandomForest* model.
+
+1. *fit:* adjusts a selected model to a dataset
+2. *predict:* given a fitted model, it computes the predictions for a new dataset
+3. *mining:* trains and tests a particular fit model under several runs and a given validation method
+
+#### Holdout
+First of all we trained a model using the *holdout* technique to divide the dataset in training and test sets.
+
+Model training:
+```{r}
+H = holdout(lifeexp$Life.expectancy, ratio=2/3, seed=12345)
+summary(H)
+model1 = fit( Life.expectancy~., lifeexp[H$tr,c(inputs,dvar)], model="randomForest")
+```
+
+Model testing:
+```{r}
+# get predictions on test set (new data)
+pred1 = predict(model1, lifeexp[H$ts,c(inputs,dvar)])
+# show scatter plot with quality of the predictions:
+target1 = lifeexp[H$ts,]$Life.expectancy
+e1 = mmetric(target1, pred1, metric=c("MAE","R2"))
+error = paste("RF, holdout: MAE=", round(e1[1],2), ", R2=", round(e1[2],2), sep="")
+mgraph(target1, pred1, graph="RSC", Grid=10, main=error)
+```
+
+#### Crossvalidation
+Then we performed again the training and the testing phases using the *crossvalidation* techinque.
+
+```{r}
+model2 = crossvaldata(Life.expectancy~., lifeexp[,c(inputs,dvar)], fit, predict, ngroup=10, seed=123, model="randomForest", task="reg")
+pred2 = model2$cv.fit # k-fold predictions on full dataset
+e2 = mmetric(lifeexp$Life.expectancy, pred2, metric=c("MAE","R2"))
+error2 = paste("RF, 10-fold: MAE=",round(e2[1],2),", R2=",round(e2[2],2),sep="")
+mgraph(lifeexp$Life.expectancy, pred2, graph="RSC", Grid=10, main=error2)
+```
+
+### Evaluation
+The 'rminer' package contains evaluation metrics and graphs that can be used to assess the quality of the fitted models and to get informations from the models. In order to do that, the *mmetric* and *mgraph()* functions are needed. 
+
+Eventually we used the *mining* function to performe hyperparameter tuning to verify if the model can be improved.
+
+```{r}
+# mining for randomForest, external 3-fold, 20 Runs (=60 fitted models)
+model3.mining = mining(Life.expectancy~., lifeexp, model="randomForest", method=c("kfold",3,123), Runs=20)
+m=mmetric(model3.mining, metric=c("MAE","RMSE","R2")) # 2 metrics:
+print(m) # show metrics for each run
+mi=meanint(m[,1])
+cat("RF MAE R2 values:",round(mi$mean,2),"+-",round(mi$int,2),"+-",round(mi$int,3),"\n")
+```
