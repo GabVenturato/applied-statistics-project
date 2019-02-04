@@ -38,47 +38,193 @@ As usual, a complete list of all functions available can be found in the documen
 help(package=rminer)
 ```
 
-For the purpose of this work instead of reporting what can be found easily --- and with more details --- inside the help, I preferred to report a brief list of the function organized by their purpose, in order to quickly move toward the practical example that is more useful to show the package capabilites.
+For the purpose of this work instead of reporting what can be found easily --- and with more details --- inside the documentation, I preferred to report a brief list of the function organized by their purpose, in order to quickly move through the practical example that is more useful to show the package capabilites.
 
-First of all, for the data preparation phase, after having loaded the dataset, the first function that can be used are mainly:
+## Data Preparation
+First of all, for the data preparation phase, after having loaded the dataset, the functions that can be used are mainly:
 
 * \texttt{delevels(x, levels, label = NULL)} -- reduce or replace factor *x* with *levels*, with an optional new label;
 * \texttt{imputation(imethod = "value", D, Attribute = NULL, Missing = NA, Value = 1)} -- perform imputation to remove missing values from dataset *D* and from a specific attribute, with the value specified.
 * \texttt{CaseSeries} -- create a data.frame from a time series (vector) using a sliding window. This function is not used in this work and its behavior can be further analized in official documentation.
 
+## Modeling
+When the dataset is ready 
+
+## Evaluation
 
 
-
-
-# Case Study
+# Case Study: Life Expectancy
 ```{r include=FALSE}
 library(ggplot2)
 library(kknn)
-library(cowplot)
+library(ggpubr)
 library(corrplot)
 ```
-In this section I'll give a quick tour towards the main functionalities of rminer by mean of a dataset.
+In this section it will be given a tour through the main functionalities of rminer by mean of a real life case study.
 
 ## The dataset
 The dataset is about Life Expectancy and can be found in Kaggle [@LEdataset]. This dataset is available thanks to the World Health Organization who keeps track of the health status for all countries. It contains data about 193 countries from the year 2000 to 2015. All data column have a pretty self-explanatory name. For more details one can have a look into the official website from which the dataset has been taken.
 
 For the purpose of this work a quick idea about the data can be achieved with the summary function in R, after lodaing it.
-```{r}
+```r
 lifeexp.df = read.csv("Life Expectancy Data.csv")
 str(lifeexp.df)
 summary(lifeexp.df) # here we can see NAs
+```
+
+```{r echo=FALSE}
+# executed here to keep the output code clean
+lifeexp.df = read.csv("Life Expectancy Data.csv")
+str(lifeexp.df,width=87,strict.width="cut")
+summary(lifeexp.df)
 ```
 
 From here can be seen that there are 22 columns and that some of them have missing values that will need to be taken care of. The purpose is to use the *Life.expectancy* variable as dependent, and all the others as predictors.
 
 An important note here about the package is that since the country variable is stores as a factor, using this dataset I've find out that rminer can't handle factors with more than 53 levels, so I transformed the country factor as a numerical.
 
+```{r}
+lifeexp.df$Country = as.numeric(lifeexp.df$Country)
+```
 
+### Imputation
+Here I manage the missing value taking advantage of the \texttt{imputation()} function of the package.
+
+```{r}
+## IMPUTATION
+# save column with missing values indexes
+nacol = NULL
+for (i in 1:ncol(lifeexp.df)) {
+  if ( any(is.na(lifeexp.df[,i])) ) {
+    nacol = c(nacol,i)
+  }
+}
+    
+# 1st method: case deletion
+lifeexp.na.del = na.omit(lifeexp.df)
+
+# 2nd method: imputation by mode
+lifeexp.imp.mode = lifeexp.df
+for (i in nacol) {
+  lifeexp.imp.mode = imputation("value", lifeexp.imp.mode, i, 
+                                Value=which.max(table(na.omit(lifeexp.df[,i]))))
+}
+
+# 3rd mode: imputation by hotdeck
+lifeexp.imp.hotdeck = lifeexp.df
+for (i in nacol) {
+  lifeexp.imp.hotdeck = imputation("hotdeck", lifeexp.imp.hotdeck, i)
+}
+```
+
+The first part is for convenience: I extract the column indexes that correspod to variables in which there are missing values. Then, just to check out for different methods, I tried to trivially remove missing values, and then I used the imputation function: firstly substituting NAs with the mode, and secondly then with the hotdeck method implemented inside the rminer package.
+
+After this manupulation its possible to check the summary of the dataframe again to check the results (for example about the hotdeck method):
+
+```{r}
+summary(lifeexp.imp.hotdeck)
+```
+
+At the end, a brief comparison between the first four columns in which missing values have been managed (similar analysis can be checked for the others but requires more space) suggests that the hotdock method is a better --- and less naif --- compromise and tends to be more aligned with original data.
+
+```{r}
+plots = list()
+j = 1
+for (i in nacol[1:4]) {
+    meth1=data.frame(v=lifeexp.na.del[[i]])
+    meth2=data.frame(v=lifeexp.imp.mode[[i]])
+    meth3=data.frame(v=lifeexp.imp.hotdeck[[i]])
+    meth1$Method="NAs deleted"
+    meth2$Method="Mode"
+    meth3$Method="Hotdeck"
+    all = rbind(meth1,meth2,meth3)
+    plots[[j]] = ggplot(all,aes(v,fill=Method))+
+      geom_density(alpha = 0.4)+
+      xlab(colnames(lifeexp.df)[i])
+    j = j+1
+}
+ggarrange(plotlist = plots, ncol=2, nrow=2, common.legend = TRUE, legend="bottom")
+
+# we keep hotdeck version
+lifeexp = lifeexp.imp.hotdeck
+```
+
+The final dataset is stored in a new variable with a more concise name for further model definition and evaluation.
+
+Another quick insight that can be explored is to check the correlation matrix. Here we can see that there are not serius problem: some correlations are abvious considering the variables meaning, and anyway those with high correlation are the first to check out later in case of poor model.
+
+```{r fig.align='center', fig.height=7}
+correlation = cor(within(lifeexp, rm("Status")))
+corrplot(correlation, type="upper", method="circle")
+```
 
 ## The model
+As described above, the rminer package contains different models that can be used for regression analysis. *Random Forest* is only one of them. I've taken it as example of the package capabilities, but with small changes any other model can be used as same as this one.
 
-## Evaluation
+In order to perform an analysis with a model it's important to have a train set to train the model, but it's necessary to have also a test set to evaluate the performance. Evaluating the model in the train set would lead to over-optimistic results.
 
-# Conclusion
+For this purpose the package rminer lets the user to easily split the dataset into train and test sets, taking care of selecting random units in the right proportions. To this aim, I've trained the model in two different ways: one with the holdout method and one with 10-fold cross-validation.
+
+Here's the code for model training:
+
+```{r cache=TRUE}
+# Holdout - Random Forest 
+H = holdout(lifeexp$Life.expectancy, ratio=2/3, seed=42)
+summary(H)
+model1 = fit( Life.expectancy~., lifeexp[H$tr,], model="randomForest")
+
+# 10-fold Cross-validation - Random Forest
+model2 = crossvaldata(Life.expectancy~., lifeexp, fit, predict, ngroup=10, seed=42, 
+                      model="randomForest", task="reg")
+```
+
+As can be seen, thanks to the rminer package, it's a very easy task to accomplish. After this, one can proceed with model evaluation.
+
+## The Evaluation
+The evaluation of the model is easy as the training. Using functions \texttt{mgraph} and \texttt{mmetric} can be printed the *Regression Scatter Plot* and all the metrics.
+
+```{r cache=TRUE}
+# Holdout
+pred1 = predict(model1, lifeexp[H$ts,]) # get predictions on test set (new data)
+target1 = lifeexp[H$ts,]$Life.expectancy
+mgraph(target1, pred1, graph="RSC", Grid=10, main="Random Forest - Holdout 1/3")
+mmetric(target1, pred1, metric="ALL")
+
+# 10-fold cross-validation
+pred2 = model2$cv.fit # k-fold predictions on full dataset
+mgraph(lifeexp$Life.expectancy, pred2, graph="RSC", Grid=10, 
+       main="Random Forest - 10-fold Cross Validation")
+mmetric(lifeexp$Life.expectancy, pred2, metric="ALL")
+```
+
+A further very useful function that can be used is the \texttt{mining} function. It lets the user to execute several fit and predict runs with a single line of code. And after mining, all the metrics are available for examination.
+
+```{r cache=TRUE}
+# mining for randomForest, external 3-fold, 20 Runs (=60 fitted models)
+model3.mining = mining(Life.expectancy~., lifeexp, 
+                       model="randomForest", method=c("kfold",3,42), Runs=20)
+m=mmetric(model3.mining, metric=c("MAE","RMSE","R2"))
+print(m) # show metrics for each run
+```
+
+Finally one can be interest in comparing the mining of a model with the mining of another model, and this can be achieved with this commands:
+
+```{r cache=TRUE}
+# mining for standard multiple linear regression
+model4.mining = mining(Life.expectancy~., lifeexp, 
+                       model="mr", method=c("kfold",3,42), Runs=20)
+
+L=vector("list",2)
+L[[1]]=model3.mining
+L[[2]]=model4.mining
+mgraph(L, graph="REC", leg=c("randomForest","mr"), main="REC curve", xval=10)
+```
+
+In this case the Random Forest model is compared with a standard multiple linear regression model. They are compared with REC curves. The Regression Error Characteristic (REC) curve is the corresponding of the ROC curve for regression. It plots the error tolerance on the x-axis versus the percentage of points predicted within the tolerance on the y-axis. More information about the REC curve can be found in [@bi2003regression].
+
+From the REC curve we can see the two models performance and see the advantage of using a more complex model with the same ease as the standard linear regression model. Of course this is not a detailed comparison, and further improvements in the linar model can be for sure achieved, but the aim here is to place emphasis on the wide spread of tools offered by rminer.
+
+# Conclusions
+Eventually, from this work it's evident that the package rminer is a good tool to perform regression analysis. With its small set of functions --- but with a wide spread of options and parameters --- can be useful to someone who want to do an overall analysis, but also to someone that want a finer granularity for personalization in model hyperparameters. In this brief tour of the package I didn't analyze the details about hyperparameters tuning, but with a quick look into the documentation one can affort this task too as easily as what done here. Must be said also that for an advanced user with very specific requirements, this package can be a bit limiting, but anyway, it's a very good starting point for a regression analysis.
 
 # References
