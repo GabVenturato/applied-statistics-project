@@ -1,6 +1,7 @@
 ---
 title: "The rminer package for regression"
 author: Gabriele Venturato
+date: 4 February 2019
 output:
   pdf_document: default
 bibliography: bibliography.bibtex
@@ -48,9 +49,30 @@ First of all, for the data preparation phase, after having loaded the dataset, t
 * \texttt{CaseSeries} -- create a data.frame from a time series (vector) using a sliding window. This function is not used in this work and its behavior can be further analized in official documentation.
 
 ## Modeling
-When the dataset is ready 
+When the dataset is ready is possible to proceed with the model definition. For this phase three functions are important:
+
+* \texttt{holdout(y, ratio = 2/3, mode = "stratified", \dots)} -- it computes indexes for holdout data split into training and test sets. Here are reported principal parameters:
+    + *ratio* represent the split ratio and if it's a percentage it's used to define the training, if in number it represents the test set number of examples
+    + the *mode* is important if one want to have an advanced control on how the splitting is performed
+    + other parameters can be found in the documentation
+
+* \texttt{fit(x, data = NULL, model = "default", task = "default", \dots)} -- it fits a supervised data mining model. Principal parameters are:
+    + *x* is the formula of the model to fit, from the datasert *data*
+    + *model* is the model to be used, there is a great variety of them
+    + *task* is to select regression or classification for models that admit both
+    + again, more parameters are available in the documentation
+  
+* \texttt{crossvaldata(x, data, theta.fit, theta.predict, ngroup = 10, model, task, \dots)} -- compute k-fold cross-validation for models. Main parameters are similar to *fit* function, and there are also:
+    + *theta.fit* and *theta.predict* are the rminer function to be used respectively for fitting and prediction
+    + *ngroup* represent the number of folds
+    + again, more parameters are available in the documentation
 
 ## Evaluation
+After having fitted the model one can proceed with the evaluation in order to understand the goodness of the model and eventually fix it. Main functions here are:
+
+* \texttt{mmetric(y, metric, \dots)} -- used to get the metrics specified in the parameter *metric* about the model *y*
+* \texttt{mgraph(y, graph, \dots)} -- used to print graphs about model accuracy: "RSC" and "REC" are common options for regression
+* \texttt{mining(x, data = NULL, Runs = 1, method = NULL, model = "default", task = "default", \dots)} -- it's a powerful function that trains and tests a particular fit model under several *runs* and a given validation *method*
 
 
 # Case Study: Life Expectancy
@@ -161,7 +183,7 @@ corrplot(correlation, type="upper", method="circle")
 ## The model
 As described above, the rminer package contains different models that can be used for regression analysis. *Random Forest* is only one of them. I've taken it as example of the package capabilities, but with small changes any other model can be used as same as this one.
 
-In order to perform an analysis with a model it's important to have a train set to train the model, but it's necessary to have also a test set to evaluate the performance. Evaluating the model in the train set would lead to over-optimistic results.
+In order to perform an analysis with a model it's important to have a training set to train the model, but it's necessary to have also a test set to evaluate the performance. Evaluating the model in the training set would lead to over-optimistic results.
 
 For this purpose the package rminer lets the user to easily split the dataset into train and test sets, taking care of selecting random units in the right proportions. To this aim, I've trained the model in two different ways: one with the holdout method and one with 10-fold cross-validation.
 
@@ -197,7 +219,7 @@ mgraph(lifeexp$Life.expectancy, pred2, graph="RSC", Grid=10,
 mmetric(lifeexp$Life.expectancy, pred2, metric="ALL")
 ```
 
-A further very useful function that can be used is the \texttt{mining} function. It lets the user to execute several fit and predict runs with a single line of code. And after mining, all the metrics are available for examination.
+A further very useful function that can be used is the \texttt{mining} function. It lets the user to execute several fit and predict runs with a single line of code. After mining, all the metrics are available for examination (note that since there can be a huge number of models, the fitted models are not stored).
 
 ```{r cache=TRUE}
 # mining for randomForest, external 3-fold, 20 Runs (=60 fitted models)
@@ -225,6 +247,6 @@ In this case the Random Forest model is compared with a standard multiple linear
 From the REC curve we can see the two models performance and see the advantage of using a more complex model with the same ease as the standard linear regression model. Of course this is not a detailed comparison, and further improvements in the linar model can be for sure achieved, but the aim here is to place emphasis on the wide spread of tools offered by rminer.
 
 # Conclusions
-Eventually, from this work it's evident that the package rminer is a good tool to perform regression analysis. With its small set of functions --- but with a wide spread of options and parameters --- can be useful to someone who want to do an overall analysis, but also to someone that want a finer granularity for personalization in model hyperparameters. In this brief tour of the package I didn't analyze the details about hyperparameters tuning, but with a quick look into the documentation one can affort this task too as easily as what done here. Must be said also that for an advanced user with very specific requirements, this package can be a bit limiting, but anyway, it's a very good starting point for a regression analysis.
+Eventually, from this work it's evident that the package rminer is a good tool to perform regression analysis. With its small set of functions --- but with a wide spread of options and parameters --- can be useful to someone who want to do an overall analysis, but also to someone that want a finer granularity for personalization in model hyperparameters. In this brief tour of the package I didn't analyze the details about hyperparameters tuning, but with a quick look into the documentation one can face up this task too as easily as what done here. Must be said also that for an advanced user with very specific requirements, this package can be a bit limiting, but anyway, it's a very good starting point for a regression analysis.
 
 # References
