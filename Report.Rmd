@@ -6,7 +6,7 @@ output:
   pdf_document: default
 bibliography: bibliography.bibtex
 nocite: |
-  @Cor10, @trevor2009elements,  @witten2016data
+  @Cor10, @trevor2009elements,  @witten2016data,@cutler2013trees
 abstract: |
   The aim of this work is to have an insight into the *rminer* package for regression analysis. Starting from a brief theoretical introduction, towards the description of the main functions of the package, and concluding with a simple case study to show how the package can be used.
 ---
@@ -17,9 +17,37 @@ abstract: |
 Regression is the problem of learning a *functional relationship* between variables using a dataset where the specific functional form learned depends on the choice of the model (it can be linear or not). The parameters of the function are learned using the *explanatory variables (features)* into the training set, and then performance are evaluates testing the model on the test set. The aim of a regression model --- as opposed to a classification model --- is to perform a *numeric prediction* based on the features in input.
 
 ## Linear Regression
+If the data about the response $Y$ and the *p* regressors $X_1,\dots,X_p$ are available, the **multiple linear regression** model is defined as (the simple model is obtained with $p=1$):
 
+$$y_i = \beta_0 + \beta_1 X_{i1} + \dots + \beta_p X_{ip} + \epsilon_i$$
+
+It's assumed that the error term is normally distributed with mean zero and variance $\sigma^2$, namely $\epsilon_i \sim N(0,\sigma^2)$, and that errors of different units are independent. From this assumption, given the predictors (which are taken as fixed), also the observations $Y_i$ are normally distributed with constant variance $\sigma^2$.
+
+This model can be expressed also in matrix form as follows:
+
+$$y = X\beta + \epsilon$$
+
+where $y$ and $\epsilon$ are columns vectors of dimension $n$, $\beta$ is a column vector of dimension $p+1$, and $X$ is a matrix of dimension $n \times (p+1)$.
+
+In this form the estimation for the model parameters can be obtained with the *leas squared method* that corresponds to the MLE:
+
+$$\hat\beta = (X^TX)^{-1}X^Ty$$
+
+and so with $\hat\beta$ its easy to esimate the mean vector $\mu = X\beta$ of the response vector $Y$, which corresponds to the *fitted values*:
+
+$$\hat{y} = \hat\mu = X\hat\beta = X(X^TX)^{-1}X^Ty$$
 
 ## Random Forest
+Random Forest models are based on *Classification and Regression Trees* (CART), which are models commonly used in data mining with the objective of creating a tree-shpaed model that predicts the value of a dependent variable. They have some advantages over traditional statistical methods because: they don't do any formal distribution assumption, they can automatically fit non-linear interactions, and they handle missing values with surrogate variables.
+
+Morover, random forest are models that have an higher accuracy, they are more stable, and they are less sensitive to overfitting. These advantages are compesated by the increased complexity. They are still speed in learning, but slower in prediction.
+
+A random forest can be build roughly with the repetition of two phases:
+
+* take a bootstrap sample from the data
+* fit a classification or regression tree
+
+all the trees created are at the end combined by averaging (in case of regression).
 
 # The rminer package
 The goal of this package is to facilitate the use of data mining algorithms for classification and regression. It offers a short and coherent set of functions in order to easily develop a project, letting the user to follow in particular three CRISP-DM stages: *data preparation*, *modeling* and *evaluation*.
@@ -248,5 +276,7 @@ From the REC curve we can see the two models performance and see the advantage o
 
 # Conclusions
 Eventually, from this work it's evident that the package rminer is a good tool to perform regression analysis. With its small set of functions --- but with a wide spread of options and parameters --- can be useful to someone who want to do an overall analysis, but also to someone that want a finer granularity for personalization in model hyperparameters. In this brief tour of the package I didn't analyze the details about hyperparameters tuning, but with a quick look into the documentation one can face up this task too as easily as what done here. Must be said also that for an advanced user with very specific requirements, this package can be a bit limiting, but anyway, it's a very good starting point for a regression analysis.
+
+\pagebreak
 
 # References
