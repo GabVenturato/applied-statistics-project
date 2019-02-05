@@ -17,9 +17,9 @@ abstract: |
 Regression is the problem of learning a *functional relationship* between variables using a dataset where the specific functional form learned depends on the choice of the model (it can be linear or not). The parameters of the function are learned using the *explanatory variables (features)* into the training set, and then performance are evaluates testing the model on the test set. The aim of a regression model --- as opposed to a classification model --- is to perform a *numeric prediction* based on the features in input.
 
 ## Linear Regression
-If the data about the response $Y$ and the *p* regressors $X_1,\dots,X_p$ are available, the **multiple linear regression** model is defined as (the simple model is obtained with $p=1$):
+If the data about the response $Y$ and the *p* regressors $X_1,\dots,X_p$ are available, the **multiple linear regression** model is defined as (the simple linear regression model can be obtained with $p=1$):
 
-$$y_i = \beta_0 + \beta_1 X_{i1} + \dots + \beta_p X_{ip} + \epsilon_i$$
+$$y_i = \beta_0 + \beta_1 x_{i1} + \dots + \beta_p x_{ip} + \epsilon_i$$
 
 It's assumed that the error term is normally distributed with mean zero and variance $\sigma^2$, namely $\epsilon_i \sim N(0,\sigma^2)$, and that errors of different units are independent. From this assumption, given the predictors (which are taken as fixed), also the observations $Y_i$ are normally distributed with constant variance $\sigma^2$.
 
@@ -27,7 +27,7 @@ This model can be expressed also in matrix form as follows:
 
 $$y = X\beta + \epsilon$$
 
-where $y$ and $\epsilon$ are columns vectors of dimension $n$, $\beta$ is a column vector of dimension $p+1$, and $X$ is a matrix of dimension $n \times (p+1)$.
+where $y$ and $\epsilon$ are columns vectors of dimension $n$, $\beta$ is a column vector of *unknown* parameters with dimension $p+1$, and $X$ is a matrix of dimension $n \times (p+1)$.
 
 In this form the estimation for the model parameters can be obtained with the *leas squared method* that corresponds to the MLE:
 
@@ -38,21 +38,31 @@ and so with $\hat\beta$ its easy to esimate the mean vector $\mu = X\beta$ of th
 $$\hat{y} = \hat\mu = X\hat\beta = X(X^TX)^{-1}X^Ty$$
 
 ## Random Forest
-Random Forest models are based on *Classification and Regression Trees* (CART), which are models commonly used in data mining with the objective of creating a tree-shpaed model that predicts the value of a dependent variable. They have some advantages over traditional statistical methods because: they don't do any formal distribution assumption, they can automatically fit non-linear interactions, and they handle missing values with surrogate variables.
+Random Forest models are based on *Classification and Regression Trees* (CART), which are models commonly used in data mining with the objective of creating a tree-shpaed model that predicts the value of a dependent variable.
 
-Morover, random forest are models that have an higher accuracy, they are more stable, and they are less sensitive to overfitting. These advantages are compesated by the increased complexity. They are still speed in learning, but slower in prediction.
+The tree-shaped form is given by construction ``growing the tree'': given $d$ features (explanatory variables), the procedure to build the regression tree is, for each node, to select a feature and perform a split based on the minimization of the residual sum of squares.
 
-A random forest can be build roughly with the repetition of two phases:
+$$ RSS = \sum_{left}(y_i - \bar{y_L})^2 + \sum_{right}(y_i - \bar{y_R})^2$$
 
-* take a bootstrap sample from the data
-* fit a classification or regression tree
+Where $\bar{y_L}$ and $\bar{y_R}$ are the means of the left and right node respectively. The value chosen for splitting is the one that minimizes RSS, and than it proceeds recursivly until leaves are reached. The stop criteria to define leaves can be stated as: stop when a region have less than $k$ values in it (with $k \ge 1$).
 
-all the trees created are at the end combined by averaging (in case of regression).
+They have some advantages over traditional statistical methods because: they don't do any formal distribution assumption, they can automatically fit non-linear interactions, and they handle missing values with surrogate variables.
+
+Morover, random forest are based on this idea, and they use a ``bag'' of these trees. They are models that have an higher accuracy, they are more stable, and they are less sensitive to overfitting. These advantages are compesated by the increased complexity. They are anyway speed in learning, but slower in prediction.
+
+A random forest can be built with the repetition of two phases:
+
+* take a bootstrap sample $D_i$ from the data $D$
+* fit a classification or regression tree on $D_i$ set
+    + for every node choose *randomly* $m$ features out of $M$ and grow the tree only on those features
+    
+
+all the trees created are at the end combined --- in case of regression --- by averaging.
 
 # The rminer package
 The goal of this package is to facilitate the use of data mining algorithms for classification and regression. It offers a short and coherent set of functions in order to easily develop a project, letting the user to follow in particular three CRISP-DM stages: *data preparation*, *modeling* and *evaluation*.
 
-The package can be installed and loaded with:
+The package can be installed with:
 ```r
 install.packages("rminer")
 ```
@@ -72,7 +82,7 @@ For the purpose of this work instead of reporting what can be found easily --- a
 ## Data Preparation
 First of all, for the data preparation phase, after having loaded the dataset, the functions that can be used are mainly:
 
-* \texttt{delevels(x, levels, label = NULL)} -- reduce or replace factor *x* with *levels*, with an optional new label;
+* \texttt{delevels(x, levels, label = NULL)} -- reduce or replace factor *x* with *levels*, with an optional new *label*;
 * \texttt{imputation(imethod = "value", D, Attribute = NULL, Missing = NA, Value = 1)} -- perform imputation to remove missing values from dataset *D* and from a specific attribute, with the value specified.
 * \texttt{CaseSeries} -- create a data.frame from a time series (vector) using a sliding window. This function is not used in this work and its behavior can be further analized in official documentation.
 
@@ -80,7 +90,7 @@ First of all, for the data preparation phase, after having loaded the dataset, t
 When the dataset is ready is possible to proceed with the model definition. For this phase three functions are important:
 
 * \texttt{holdout(y, ratio = 2/3, mode = "stratified", \dots)} -- it computes indexes for holdout data split into training and test sets. Here are reported principal parameters:
-    + *ratio* represent the split ratio and if it's a percentage it's used to define the training, if in number it represents the test set number of examples
+    + *ratio* represent the split ratio. If it's a percentage it's used to define the training, if it's a number it represents the test set number of examples
     + the *mode* is important if one want to have an advanced control on how the splitting is performed
     + other parameters can be found in the documentation
 
@@ -113,7 +123,7 @@ library(corrplot)
 In this section it will be given a tour through the main functionalities of rminer by mean of a real life case study.
 
 ## The dataset
-The dataset is about Life Expectancy and can be found in Kaggle [@LEdataset]. This dataset is available thanks to the World Health Organization who keeps track of the health status for all countries. It contains data about 193 countries from the year 2000 to 2015. All data column have a pretty self-explanatory name. For more details one can have a look into the official website from which the dataset has been taken.
+The dataset is about Life Expectancy and can be found in Kaggle (url in references). This dataset is available thanks to the World Health Organization who keeps track of the health status for all countries. It contains data about 193 countries from the year 2000 to 2015. All data column have a pretty self-explanatory name. For more details one can have a look into the official website from which the dataset has been taken.
 
 For the purpose of this work a quick idea about the data can be achieved with the summary function in R, after lodaing it.
 ```r
@@ -131,7 +141,7 @@ summary(lifeexp.df)
 
 From here can be seen that there are 22 columns and that some of them have missing values that will need to be taken care of. The purpose is to use the *Life.expectancy* variable as dependent, and all the others as predictors.
 
-An important note here about the package is that since the country variable is stores as a factor, using this dataset I've find out that rminer can't handle factors with more than 53 levels, so I transformed the country factor as a numerical.
+An important note here about the package is that since the country variable is stored as a factor, using this dataset I've find out that rminer can't handle factors with more than 53 levels, so I transformed the country factor as a numerical.
 
 ```{r}
 lifeexp.df$Country = as.numeric(lifeexp.df$Country)
@@ -201,7 +211,7 @@ lifeexp = lifeexp.imp.hotdeck
 
 The final dataset is stored in a new variable with a more concise name for further model definition and evaluation.
 
-Another quick insight that can be explored is to check the correlation matrix. Here we can see that there are not serius problem: some correlations are abvious considering the variables meaning, and anyway those with high correlation are the first to check out later in case of poor model.
+Another quick insight that can be explored is to check the correlation matrix. Here we can see that there are not serius problems: some correlations are obvious considering variables meaning, and anyway those with high correlation are the first to check out later in case of poor model.
 
 ```{r fig.align='center', fig.height=7}
 correlation = cor(within(lifeexp, rm("Status")))
